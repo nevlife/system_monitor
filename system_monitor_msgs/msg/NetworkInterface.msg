@@ -1,0 +1,14 @@
+string name
+bool is_up
+int32 mtu
+int32 speed_mbps
+float64 input_bytes_per_sec
+float64 output_bytes_per_sec
+int64 rx_bytes
+int64 tx_bytes
+int64 rx_packets
+int64 tx_packets
+int64 rx_errors
+int64 tx_errors
+int64 rx_dropped
+int64 tx_dropped

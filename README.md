@@ -1,132 +1,155 @@
-# System Monitor Agent
+# system_monitor
 
-## 프로젝트 설명
+A ROS2 package that collects local system metrics (CPU, memory, disk, network, GPU) and publishes them as ROS2 topics.
 
-이 프로젝트는 Python으로 작성된 간단한 시스템 모니터링 에이전트입니다. 로컬 시스템의 다양한 성능 지표(CPU, 메모리, 디스크, 네트워크 등)를 주기적으로 수집하여 지정된 HTTP 서버로 전송합니다.
+## Package Structure
 
-## 주요 기능
-
-- **포괄적인 메트릭 수집**:
-  - **CPU**: 사용률, 코어 정보, 현재 주파수, 온도 등
-  - **메모리**: 전체/사용/가능 메모리, 사용률, 스왑 메모리 정보
-  - **디스크**: 파티션별 사용량, 전체 디스크 I/O
-  - **네트워크**: 인터페이스별 상태, 속도, 초당 트래픽, 누적 데이터 및 오류
-  - **GPU**: NVIDIA GPU 사용률, 메모리 사용량, 온도, 전력 (nvidia-smi 필요)
-  - **시스템**: 호스트 이름, OS 정보, 부팅 시간, 현재 접속자 등
-- **유연한 설정**: `config.yaml` 파일을 통해 수집 간격, 서버 정보, 각 메트릭 모듈 활성화 여부를 쉽게 설정할 수 있습니다.
-- **HTTP 전송**: 수집된 데이터를 지정된 서버의 API 엔드포인트로 JSON 형식으로 전송합니다. 재시도 로직이 포함되어 있습니다.
-
-## 요구사항
-
-프로젝트를 실행하기 위해 다음 라이브러리가 필요합니다.
-
-- `psutil`
-- `requests`
-- `pyyaml`
-
-다음 명령어로 필요한 라이브러리를 설치할 수 있습니다.
-```bash
-pip install -r requirements.txt
 ```
-**참고**: GPU 메트릭을 수집하려면 시스템에 `nvidia-smi` CLI 도구(NVIDIA 드라이버에 포함)가 설치되어 있고, PATH에 잡혀 있어야 합니다.
-
-## 설정
-
-프로젝트 루트 디렉토리에 `config.yaml` 파일을 생성하고 아래 형식에 맞게 내용을 작성해야 합니다.
-
-```yaml
-# config.yaml
-
-# 데이터를 전송할 서버 정보
-server:
-  url: "http://127.0.0.1:8000"
-  endpoint: "/api/metrics/"
-  timeout: 10
-  max_retries: 3
-
-# 데이터 수집기 설정
-collector:
-  interval: 5         # 데이터 수집 간격 (초)
-  batch_size: 10      # 몇 개의 데이터를 모아서 전송할지 결정
-  modules:            # 각 모듈 활성화 여부
-    cpu: true
-    memory: true
-    disk: true
-    network: true
-    gpu: false        # NVIDIA GPU가 없는 경우 false로 설정
-    system: true
-
-# 클라이언트 식별자
-client:
-  id: "my-first-agent" # 이 에이전트를 식별할 고유 ID
-
-# 로깅 설정 (현재 미사용)
-logging:
-  level: "INFO"
+system_monitor/
+├── system_monitor_core/          # Python collection modules (no ROS2 dependency)
+│   ├── cpu.py
+│   ├── memory.py
+│   ├── disk.py
+│   ├── network.py
+│   ├── gpu.py
+│   └── system.py
+├── system_monitor/               # ROS2 package
+│   ├── scripts/
+│   │   └── system_monitor_node.py
+│   ├── config/
+│   │   └── params.yaml
+│   └── launch/
+│       └── system_monitor.launch.py
+└── system_monitor_msgs/          # Custom message definitions
+    └── msg/
+        ├── CpuMetrics.msg
+        ├── MemoryMetrics.msg
+        ├── DiskMetrics.msg
+        ├── DiskPartitionUsage.msg
+        ├── NetworkMetrics.msg
+        ├── NetworkInterface.msg
+        ├── GpuMetrics.msg
+        └── GpuInfo.msg
 ```
 
-## 사용법
-
-설정이 완료되면 다음 명령어로 에이전트를 실행합니다.
+## Dependencies
 
 ```bash
-python main.py
+pip install psutil nvidia-ml-py
 ```
 
-에이전트는 `config.yaml` 파일에 설정된 `interval` 간격으로 계속 실행되며, `Ctrl+C`를 눌러 중지할 수 있습니다.
+- `psutil`: CPU, memory, disk, network collection
+- `nvidia-ml-py` (`pynvml`): GPU collection (optional — safe to omit if no NVIDIA GPU)
 
-## 전송 데이터 구조 예시
+## Build & Run
 
-서버로 전송되는 데이터는 다음과 같은 JSON 구조를 가집니다.
+```bash
+cd ~/dev/ros2_ws
+colcon build --packages-select system_monitor_msgs system_monitor
+source install/setup.bash
 
-```json
-{
-  "client_id": "my-first-agent",
-  "cpu": {
-    "usage_percent": 15.4,
-    "freq_current": 3400.0,
-    "temperature": -1,
-    "load_average": -1,
-    "iowait": -1,
-    "user": 12345.6,
-    "system": 6789.0,
-    "idle": 98765.4,
-    "ctx_switches": 100000,
-    "interrupts": 50000,
-    "soft_interrupts": 20000
-  },
-  "memory": {
-    "total": 16000000000,
-    "available": 8000000000,
-    "percent": 50.0,
-    "...": "..."
-  },
-  "disk": {
-    "usage_per_partition": {
-      "C:\\": {
-        "total": 500000000000,
-        "used": 250000000000,
-        "percent": 50.0,
-        "...": "..."
-      }
-    },
-    "io_total": {
-      "read_count": 12345,
-      "write_count": 54321,
-      "...": "..."
-    }
-  },
-  "network": {
-    "summary": { "...": "..." },
-    "interfaces": { "...": "..." }
-  },
-  "system": {
-    "timestamp": "2025-10-03T18:00:00.000000",
-    "uptime": 3600.0,
-    "...": "..."
-  },
-  "gpu": {
-      "gpus": []
-  }
-}
+ros2 launch system_monitor system_monitor.launch.py
 ```
+
+## Parameters (params.yaml)
+
+| Parameter | Default | Description |
+|---|---|---|
+| `publish_rate` | `1.0` | Publish rate (Hz) |
+| `enabled_cpu` | `true` | Enable CPU metrics |
+| `enabled_memory` | `true` | Enable memory metrics |
+| `enabled_disk` | `true` | Enable disk metrics |
+| `enabled_network` | `true` | Enable network metrics |
+| `enabled_gpu` | `true` | Enable GPU metrics |
+
+## Published Topics
+
+| Topic | Message Type | Description |
+|---|---|---|
+| `/system_monitor/cpu` | `system_monitor_msgs/CpuMetrics` | CPU metrics |
+| `/system_monitor/memory` | `system_monitor_msgs/MemoryMetrics` | Memory metrics |
+| `/system_monitor/disk` | `system_monitor_msgs/DiskMetrics` | Disk I/O and partitions |
+| `/system_monitor/network` | `system_monitor_msgs/NetworkMetrics` | Network interfaces |
+| `/system_monitor/gpu` | `system_monitor_msgs/GpuMetrics` | GPU metrics |
+
+## Message Definitions
+
+### CpuMetrics
+| Field | Type | Description |
+|---|---|---|
+| `stamp` | `builtin_interfaces/Time` | Timestamp |
+| `usage_percent` | `float32` | Overall CPU usage (%) |
+| `freq_current_mhz` | `float32` | Current frequency (MHz) |
+| `temperature_celsius` | `float32` | Temperature (°C), -1.0 if unavailable |
+| `load_avg_1m/5m/15m` | `float32` | Load average, -1.0 on Windows |
+| `iowait_seconds` | `float64` | I/O wait time (s), -1.0 if unavailable |
+| `user/system/idle_seconds` | `float64` | Cumulative CPU time (s) |
+| `ctx_switches` | `int64` | Context switch count |
+| `interrupts` | `int64` | Interrupt count |
+| `soft_interrupts` | `int64` | Soft interrupt count |
+
+### MemoryMetrics
+| Field | Type | Description |
+|---|---|---|
+| `stamp` | `builtin_interfaces/Time` | Timestamp |
+| `total/available/used/free_bytes` | `int64` | Memory size (bytes) |
+| `percent` | `float32` | Usage (%) |
+| `active/inactive/buffers/cached/shared/slab_bytes` | `int64` | Detailed memory, -1 if unavailable |
+| `swap_total/used/free_bytes` | `int64` | Swap size (bytes) |
+| `swap_percent` | `float32` | Swap usage (%) |
+
+### DiskMetrics
+| Field | Type | Description |
+|---|---|---|
+| `stamp` | `builtin_interfaces/Time` | Timestamp |
+| `partitions` | `DiskPartitionUsage[]` | Per-partition usage |
+| `io_read/write_count` | `int64` | Cumulative read/write count |
+| `io_read/write_bytes` | `int64` | Cumulative read/write size (bytes) |
+| `io_read/write_time_ms` | `int64` | Cumulative read/write time (ms) |
+| `io_busy_time_ms` | `int64` | Disk busy time (ms), Linux only |
+
+### DiskPartitionUsage
+| Field | Type | Description |
+|---|---|---|
+| `mountpoint` | `string` | Mount path |
+| `total/used/free_bytes` | `int64` | Size (bytes) |
+| `percent` | `float32` | Usage (%) |
+| `accessible` | `bool` | Whether the partition is accessible |
+
+### NetworkMetrics
+| Field | Type | Description |
+|---|---|---|
+| `stamp` | `builtin_interfaces/Time` | Timestamp |
+| `total_interfaces` | `int32` | Total interface count |
+| `active_interfaces` | `int32` | Active (UP) interface count |
+| `down_interfaces` | `int32` | Inactive interface count |
+| `interfaces` | `NetworkInterface[]` | Per-interface details |
+
+### NetworkInterface
+| Field | Type | Description |
+|---|---|---|
+| `name` | `string` | Interface name |
+| `is_up` | `bool` | Whether the interface is up |
+| `mtu` | `int32` | MTU (bytes) |
+| `speed_mbps` | `int32` | Link speed (Mbps) |
+| `input/output_bytes_per_sec` | `float64` | Current RX/TX rate (bytes/s) |
+| `rx/tx_bytes` | `int64` | Cumulative RX/TX (bytes) |
+| `rx/tx_packets` | `int64` | Cumulative packet count |
+| `rx/tx_errors` | `int64` | Cumulative error count |
+| `rx/tx_dropped` | `int64` | Cumulative drop count |
+
+### GpuMetrics
+| Field | Type | Description |
+|---|---|---|
+| `stamp` | `builtin_interfaces/Time` | Timestamp |
+| `gpus` | `GpuInfo[]` | Per-GPU info |
+
+### GpuInfo
+| Field | Type | Description |
+|---|---|---|
+| `index` | `int32` | GPU index |
+| `utilization_percent` | `float32` | Utilization (%), -1.0 if unavailable |
+| `memory_used_mb` | `float32` | Used VRAM (MB) |
+| `memory_total_mb` | `float32` | Total VRAM (MB) |
+| `temperature_celsius` | `float32` | Temperature (°C) |
+| `power_watts` | `float32` | Power draw (W) |

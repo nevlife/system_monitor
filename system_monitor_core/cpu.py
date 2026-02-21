@@ -2,10 +2,10 @@
 CPU metrics collection.
 
 Units:
-- freq_min, freq_max, freq_current: MHz
-- temperature: Celsius (°C)
-- load_average: 1/5/15 minute averages
-- user, system, idle, iowait: seconds
+- freq_current_mhz: MHz
+- temperature_celsius: Celsius (°C)
+- load_avg_1m/5m/15m: 1/5/15 minute averages
+- user_seconds, system_seconds, idle_seconds, iowait_seconds: seconds
 - ctx_switches, interrupts, soft_interrupts: count
 - usage_percent: percentage (%)
 """
@@ -26,13 +26,15 @@ class CPUStatic(TypedDict):
 
 class CPUDynamic(TypedDict):
     usage_percent: float
-    freq_current: float
-    temperature: float | int
-    load_average: tuple | int
-    iowait: float | int
-    user: float
-    system: float
-    idle: float
+    freq_current_mhz: float
+    temperature_celsius: float
+    load_avg_1m: float
+    load_avg_5m: float
+    load_avg_15m: float
+    iowait_seconds: float
+    user_seconds: float
+    system_seconds: float
+    idle_seconds: float
     ctx_switches: int
     interrupts: int
     soft_interrupts: int
@@ -53,32 +55,38 @@ def get_cpu_dynamic_metrics() -> CPUDynamic:
     stats = psutil.cpu_stats()
     freq = psutil.cpu_freq()
 
-    temperature = -1
-    load_average = -1
-    iowait = -1
+    temperature_celsius = -1.0
+    load_avg_1m = -1.0
+    load_avg_5m = -1.0
+    load_avg_15m = -1.0
+    iowait_seconds = -1.0
 
     match OS_TYPE:
         case 'Linux':
             temps = psutil.sensors_temperatures()
             sensor_list = temps.get('coretemp', temps.get('cpu_thermal', temps.get('k10temp', temps.get('zenpower', []))))
-            temperature = sensor_list[0].current if sensor_list else -1
-            load_average = psutil.getloadavg()
-            iowait = times.iowait
+            temperature_celsius = float(sensor_list[0].current) if sensor_list else -1.0
+            load_avg = psutil.getloadavg()
+            load_avg_1m, load_avg_5m, load_avg_15m = float(load_avg[0]), float(load_avg[1]), float(load_avg[2])
+            iowait_seconds = float(times.iowait)
         case 'Darwin':
-            load_average = psutil.getloadavg()
-            iowait = times.iowait
+            load_avg = psutil.getloadavg()
+            load_avg_1m, load_avg_5m, load_avg_15m = float(load_avg[0]), float(load_avg[1]), float(load_avg[2])
+            iowait_seconds = float(times.iowait)
         case 'Windows':
             pass
 
     return {
         'usage_percent': psutil.cpu_percent(interval=0.1),
-        'freq_current': freq.current,
-        'temperature': temperature,
-        'load_average': load_average,
-        'iowait': iowait,
-        'user': times.user,
-        'system': times.system,
-        'idle': times.idle,
+        'freq_current_mhz': freq.current,
+        'temperature_celsius': temperature_celsius,
+        'load_avg_1m': load_avg_1m,
+        'load_avg_5m': load_avg_5m,
+        'load_avg_15m': load_avg_15m,
+        'iowait_seconds': iowait_seconds,
+        'user_seconds': times.user,
+        'system_seconds': times.system,
+        'idle_seconds': times.idle,
         'ctx_switches': stats.ctx_switches,
         'interrupts': stats.interrupts,
         'soft_interrupts': stats.soft_interrupts

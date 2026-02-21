@@ -19,11 +19,10 @@ def get_network_info() -> Dict[str, Any]:
 
     current_io_counters = psutil.net_io_counters(pernic=True)
     current_time = time.time()
-    
-    time_delta = current_time - _previous_time
+
+    time_delta = max(current_time - _previous_time, 1e-6)
 
     if_stats = psutil.net_if_stats()
-    if_addrs = psutil.net_if_addrs()
 
     interfaces_data = {}
     summary_counts = {
@@ -37,44 +36,32 @@ def get_network_info() -> Dict[str, Any]:
             continue
 
         summary_counts['total'] += 1
-        state = 'up' if stats.isup else 'down'
-        if state == 'up':
+        is_up = stats.isup
+        if is_up:
             summary_counts['active'] += 1
         else:
             summary_counts['down'] += 1
-        
-        is_ethernet = any(addr.family == psutil.AF_LINK for addr in if_addrs.get(name, []))
 
         current_io = current_io_counters[name]
         prev_io = _previous_io_counters.get(name, current_io)
-
-        statistics_dict = {
-            'rx_bytes': current_io.bytes_recv,
-            'tx_bytes': current_io.bytes_sent,
-            'rx_packets': current_io.packets_recv,
-            'tx_packets': current_io.packets_sent,
-        }
-        
-        errors_dict = {
-            'collisions': getattr(current_io, 'collisions', -1), # Return -1 if attribute is missing
-            'rx_errors': current_io.errin,
-            'tx_errors': current_io.errout,
-            'rx_dropped': current_io.dropin,
-            'tx_dropped': current_io.dropout,
-        }
 
         input_bytes_per_sec = (current_io.bytes_recv - prev_io.bytes_recv) / time_delta
         output_bytes_per_sec = (current_io.bytes_sent - prev_io.bytes_sent) / time_delta
 
         interfaces_data[name] = {
-            'state': state,
+            'is_up': is_up,
             'mtu': stats.mtu,
-            'speed': stats.speed,
-            'is_ethernet': is_ethernet,
+            'speed_mbps': stats.speed,
             'input_bytes_per_sec': input_bytes_per_sec,
             'output_bytes_per_sec': output_bytes_per_sec,
-            'statistics': statistics_dict,
-            'errors': errors_dict,
+            'rx_bytes': current_io.bytes_recv,
+            'tx_bytes': current_io.bytes_sent,
+            'rx_packets': current_io.packets_recv,
+            'tx_packets': current_io.packets_sent,
+            'rx_errors': current_io.errin,
+            'tx_errors': current_io.errout,
+            'rx_dropped': current_io.dropin,
+            'tx_dropped': current_io.dropout,
         }
 
     summary = {
@@ -93,10 +80,10 @@ def get_network_info() -> Dict[str, Any]:
 
 if __name__ == '__main__':
     import json
-    
+
     print("--- Gathering network info (first call establishes baseline) ---")
-    get_network_info() 
-    
+    get_network_info()
+
     print("Waiting 2 seconds to measure traffic...")
     time.sleep(2)
 

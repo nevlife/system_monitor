@@ -1,0 +1,5 @@
+builtin_interfaces/Time stamp
+int32 total_interfaces
+int32 active_interfaces
+int32 down_interfaces
+system_monitor_msgs/NetworkInterface[] interfaces

@@ -1,0 +1,8 @@
+system_monitor:
+  ros__parameters:
+    publish_rate: 1.0
+    enabled_cpu: true
+    enabled_memory: true
+    enabled_disk: true
+    enabled_network: true
+    enabled_gpu: true
