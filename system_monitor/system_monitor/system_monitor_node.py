@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 import rclpy
 from rclpy.node import Node
-from builtin_interfaces.msg import Time
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 from system_monitor_msgs.msg import (
     CpuMetrics,
@@ -19,12 +14,9 @@ from system_monitor_msgs.msg import (
     GpuInfo,
 )
 
-from system_monitor_core import cpu, memory, disk, network, gpu
-
-
-def make_stamp(node: Node) -> Time:
-    t = node.get_clock().now().to_msg()
-    return t
+from system_monitor.core import cpu, memory, disk
+from system_monitor.core.network import NetworkSampler
+from system_monitor.core.gpu import GpuSampler
 
 
 class SystemMonitorNode(Node):
@@ -45,23 +37,32 @@ class SystemMonitorNode(Node):
         self.enabled_network = self.get_parameter('enabled_network').get_parameter_value().bool_value
         self.enabled_gpu = self.get_parameter('enabled_gpu').get_parameter_value().bool_value
 
-        qos = rclpy.qos.QoSProfile(depth=10)
+        if rate <= 0.0:
+            raise ValueError(f'publish_rate must be > 0, got {rate}')
+
+        qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+        )
 
         if self.enabled_cpu:
-            self.cpu_pub = self.create_publisher(CpuMetrics, '/system_monitor/cpu', qos)
+            self.cpu_pub = self.create_publisher(CpuMetrics, 'cpu', qos)
+            cpu.warmup()
         if self.enabled_memory:
-            self.mem_pub = self.create_publisher(MemoryMetrics, '/system_monitor/memory', qos)
+            self.mem_pub = self.create_publisher(MemoryMetrics, 'memory', qos)
         if self.enabled_disk:
-            self.disk_pub = self.create_publisher(DiskMetrics, '/system_monitor/disk', qos)
+            self.disk_pub = self.create_publisher(DiskMetrics, 'disk', qos)
+
+        self.network_sampler = NetworkSampler() if self.enabled_network else None
         if self.enabled_network:
-            self.net_pub = self.create_publisher(NetworkMetrics, '/system_monitor/network', qos)
+            self.net_pub = self.create_publisher(NetworkMetrics, 'network', qos)
+
+        self.gpu_sampler = GpuSampler() if self.enabled_gpu else None
         if self.enabled_gpu:
-            self.gpu_pub = self.create_publisher(GpuMetrics, '/system_monitor/gpu', qos)
+            self.gpu_pub = self.create_publisher(GpuMetrics, 'gpu', qos)
 
-        if self.enabled_network:
-            network.get_network_info()
-
-        period = 1.0 / rate if rate > 0.0 else 1.0
+        period = 1.0 / rate
         self.timer = self.create_timer(period, self.publish)
 
         self.get_logger().info(
@@ -70,22 +71,28 @@ class SystemMonitorNode(Node):
             f'disk={self.enabled_disk} net={self.enabled_network} gpu={self.enabled_gpu}'
         )
 
-    def publish(self):
-        if self.enabled_cpu:
-            self.publish_cpu()
-        if self.enabled_memory:
-            self.publish_memory()
-        if self.enabled_disk:
-            self.publish_disk()
-        if self.enabled_network:
-            self.publish_network()
-        if self.enabled_gpu:
-            self.publish_gpu()
+    def destroy_node(self):
+        if self.gpu_sampler is not None:
+            self.gpu_sampler.close()
+        super().destroy_node()
 
-    def publish_cpu(self):
+    def publish(self):
+        stamp = self.get_clock().now().to_msg()
+        if self.enabled_cpu:
+            self.publish_cpu(stamp)
+        if self.enabled_memory:
+            self.publish_memory(stamp)
+        if self.enabled_disk:
+            self.publish_disk(stamp)
+        if self.enabled_network:
+            self.publish_network(stamp)
+        if self.enabled_gpu:
+            self.publish_gpu(stamp)
+
+    def publish_cpu(self, stamp):
         data = cpu.get_cpu_dynamic_metrics()
         msg = CpuMetrics()
-        msg.stamp = make_stamp(self)
+        msg.stamp = stamp
         msg.usage_percent = float(data['usage_percent'])
         msg.freq_current_mhz = float(data['freq_current_mhz'])
         msg.temperature_celsius = float(data['temperature_celsius'])
@@ -101,10 +108,10 @@ class SystemMonitorNode(Node):
         msg.soft_interrupts = int(data['soft_interrupts'])
         self.cpu_pub.publish(msg)
 
-    def publish_memory(self):
+    def publish_memory(self, stamp):
         data = memory.get_memory_dynamic_metrics()
         msg = MemoryMetrics()
-        msg.stamp = make_stamp(self)
+        msg.stamp = stamp
         msg.total_bytes = int(data['total'])
         msg.available_bytes = int(data['available'])
         msg.used_bytes = int(data['used'])
@@ -122,12 +129,12 @@ class SystemMonitorNode(Node):
         msg.swap_percent = float(data['swap_percent'])
         self.mem_pub.publish(msg)
 
-    def publish_disk(self):
+    def publish_disk(self, stamp):
         partitions = disk.get_disk_usage_per_partition()
         io = disk.get_disk_io_total()
 
         msg = DiskMetrics()
-        msg.stamp = make_stamp(self)
+        msg.stamp = stamp
 
         for p in partitions:
             part_msg = DiskPartitionUsage()
@@ -148,13 +155,13 @@ class SystemMonitorNode(Node):
         msg.io_busy_time_ms = int(io['io_busy_time_ms'])
         self.disk_pub.publish(msg)
 
-    def publish_network(self):
-        data = network.get_network_info()
+    def publish_network(self, stamp):
+        data = self.network_sampler.sample()
         summary = data['summary']
         interfaces = data['interfaces']
 
         msg = NetworkMetrics()
-        msg.stamp = make_stamp(self)
+        msg.stamp = stamp
         msg.total_interfaces = int(summary['total_interfaces'])
         msg.active_interfaces = int(summary['active_interfaces'])
         msg.down_interfaces = int(summary['down_interfaces'])
@@ -179,10 +186,10 @@ class SystemMonitorNode(Node):
 
         self.net_pub.publish(msg)
 
-    def publish_gpu(self):
-        data = gpu.get_gpu_dynamic_metrics()
+    def publish_gpu(self, stamp):
+        data = self.gpu_sampler.sample()
         msg = GpuMetrics()
-        msg.stamp = make_stamp(self)
+        msg.stamp = stamp
 
         for g in data['gpus']:
             gpu_msg = GpuInfo()

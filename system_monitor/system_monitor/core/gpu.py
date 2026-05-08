@@ -6,10 +6,12 @@ Units:
 - memory_used_mb, memory_total_mb: MB
 - temperature_celsius: Celsius (°C)
 - power_watts: Watts (W)
+
+NVML is initialised once per GpuSampler instance and shut down via close().
 """
 
 import platform
-from typing import TypedDict, List
+from typing import TypedDict, List, Dict, Any
 import time
 
 try:
@@ -39,42 +41,55 @@ class GPUDynamic(TypedDict):
     gpus: List[GPUInfo]
 
 
-def get_gpu_static_metadata() -> GPUStatic:
-    count = 0
-    names = []
+class GpuSampler:
+    def __init__(self) -> None:
+        self._initialized = False
+        self._handles: list = []
 
-    if not _PYNVML_AVAILABLE:
-        return {'count': count, 'names': names}
+        if not _PYNVML_AVAILABLE:
+            return
 
-    try:
-        pynvml.nvmlInit()
-        count = pynvml.nvmlDeviceGetCount()
-        for i in range(count):
-            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-            name = pynvml.nvmlDeviceGetName(handle)
-            if isinstance(name, bytes):
-                name = name.decode('utf-8')
-            names.append(name)
-        pynvml.nvmlShutdown()
-    except Exception:
-        pass
+        try:
+            pynvml.nvmlInit()
+            self._initialized = True
+            count = pynvml.nvmlDeviceGetCount()
+            self._handles = [pynvml.nvmlDeviceGetHandleByIndex(i) for i in range(count)]
+        except Exception:
+            self._initialized = False
+            self._handles = []
 
-    return {'count': count, 'names': names}
+    def close(self) -> None:
+        if self._initialized:
+            try:
+                pynvml.nvmlShutdown()
+            except Exception:
+                pass
+            self._initialized = False
+            self._handles = []
 
+    def static_metadata(self) -> GPUStatic:
+        if not self._initialized:
+            return {'count': 0, 'names': []}
 
-def get_gpu_dynamic_metrics() -> GPUDynamic:
-    gpus = []
+        names: List[str] = []
+        for handle in self._handles:
+            try:
+                name = pynvml.nvmlDeviceGetName(handle)
+                if isinstance(name, bytes):
+                    name = name.decode('utf-8')
+                names.append(name)
+            except pynvml.NVMLError:
+                names.append('unknown')
 
-    if not _PYNVML_AVAILABLE:
-        return {'gpus': gpus}
+        return {'count': len(self._handles), 'names': names}
 
-    try:
-        pynvml.nvmlInit()
-        count = pynvml.nvmlDeviceGetCount()
+    def sample(self) -> GPUDynamic:
+        gpus: List[GPUInfo] = []
 
-        for i in range(count):
-            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+        if not self._initialized:
+            return {'gpus': gpus}
 
+        for i, handle in enumerate(self._handles):
             try:
                 util = pynvml.nvmlDeviceGetUtilizationRates(handle)
                 utilization_percent = float(util.gpu)
@@ -110,39 +125,25 @@ def get_gpu_dynamic_metrics() -> GPUDynamic:
                 'power_watts': power_watts,
             })
 
-        pynvml.nvmlShutdown()
-    except Exception:
-        pass
-
-    return {'gpus': gpus}
+        return {'gpus': gpus}
 
 
 if __name__ == "__main__":
     start_time = time.perf_counter()
 
-    def print_with_type(prefix, value):
-        print(f"{prefix}: {value} (type={type(value).__name__})")
+    sampler = GpuSampler()
+    try:
+        print("=== GPU Static Metadata ===")
+        static = sampler.static_metadata()
+        for key, value in static.items():
+            print(f"{key}: {value}")
 
-    print("=== GPU Static Metadata ===")
-    static = get_gpu_static_metadata()
-    print_with_type("static", static)
-    for key, value in static.items():
-        print_with_type(f"static.{key}", value)
-        if isinstance(value, list):
-            for idx, item in enumerate(value):
-                print_with_type(f"static.{key}[{idx}]", item)
-
-    print("\n=== GPU Dynamic Metrics ===")
-    dynamic = get_gpu_dynamic_metrics()
-    print_with_type("dynamic", dynamic)
-    for key, value in dynamic.items():
-        print_with_type(f"dynamic.{key}", value)
-        if isinstance(value, list):
-            for idx, item in enumerate(value):
-                print_with_type(f"dynamic.{key}[{idx}]", item)
-                if isinstance(item, dict):
-                    for sub_key, sub_value in item.items():
-                        print_with_type(f"dynamic.{key}[{idx}].{sub_key}", sub_value)
+        print("\n=== GPU Dynamic Metrics ===")
+        dynamic = sampler.sample()
+        for key, value in dynamic.items():
+            print(f"{key}: {value}")
+    finally:
+        sampler.close()
 
     elapsed = time.perf_counter() - start_time
     print(f"\nTime taken: {elapsed:.4f} seconds")

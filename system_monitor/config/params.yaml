@@ -5,4 +5,4 @@ system_monitor:
     enabled_memory: true
     enabled_disk: true
     enabled_network: true
-    enabled_gpu: true
+    enabled_gpu: false

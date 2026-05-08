@@ -12,7 +12,7 @@ Units:
 
 import psutil
 import platform
-from typing import TypedDict, List, Optional
+from typing import TypedDict, List
 import time
 
 OS_TYPE = platform.system()

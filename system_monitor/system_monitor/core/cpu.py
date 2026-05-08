@@ -17,6 +17,7 @@ import time
 
 OS_TYPE = platform.system()
 
+
 class CPUStatic(TypedDict):
     logical_cores: int
     physical_cores: int
@@ -38,6 +39,12 @@ class CPUDynamic(TypedDict):
     ctx_switches: int
     interrupts: int
     soft_interrupts: int
+
+
+def warmup() -> None:
+    # Prime psutil's internal cpu_percent state so subsequent non-blocking
+    # calls return a meaningful delta instead of 0.0.
+    psutil.cpu_percent(interval=None)
 
 
 def get_cpu_static_metadata() -> CPUStatic:
@@ -77,7 +84,7 @@ def get_cpu_dynamic_metrics() -> CPUDynamic:
             pass
 
     return {
-        'usage_percent': psutil.cpu_percent(interval=0.1),
+        'usage_percent': psutil.cpu_percent(interval=None),
         'freq_current_mhz': freq.current,
         'temperature_celsius': temperature_celsius,
         'load_avg_1m': load_avg_1m,
@@ -95,6 +102,9 @@ def get_cpu_dynamic_metrics() -> CPUDynamic:
 
 if __name__ == "__main__":
     start_time = time.perf_counter()
+
+    warmup()
+    time.sleep(0.1)
 
     print("=== CPU Static Metadata ===")
     static = get_cpu_static_metadata()

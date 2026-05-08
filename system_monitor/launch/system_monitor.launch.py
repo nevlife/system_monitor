@@ -10,7 +10,7 @@ def generate_launch_description():
 
     system_monitor_node = Node(
         package='system_monitor',
-        executable='system_monitor_node.py',
+        executable='system_monitor_node',
         name='system_monitor',
         output='screen',
         parameters=[params_file],
