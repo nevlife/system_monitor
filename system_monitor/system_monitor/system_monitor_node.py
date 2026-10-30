@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 from system_monitor_msgs.msg import (
@@ -23,19 +24,12 @@ class SystemMonitorNode(Node):
     def __init__(self):
         super().__init__('system_monitor')
 
-        self.declare_parameter('publish_rate', 1.0)
-        self.declare_parameter('enabled_cpu', True)
-        self.declare_parameter('enabled_memory', True)
-        self.declare_parameter('enabled_disk', True)
-        self.declare_parameter('enabled_network', True)
-        self.declare_parameter('enabled_gpu', False)
-
-        rate = self.get_parameter('publish_rate').get_parameter_value().double_value
-        self.enabled_cpu = self.get_parameter('enabled_cpu').get_parameter_value().bool_value
-        self.enabled_memory = self.get_parameter('enabled_memory').get_parameter_value().bool_value
-        self.enabled_disk = self.get_parameter('enabled_disk').get_parameter_value().bool_value
-        self.enabled_network = self.get_parameter('enabled_network').get_parameter_value().bool_value
-        self.enabled_gpu = self.get_parameter('enabled_gpu').get_parameter_value().bool_value
+        rate = self.declare_parameter('publish_rate', Parameter.Type.DOUBLE).value
+        self.enabled_cpu = self.declare_parameter('enabled_cpu', Parameter.Type.BOOL).value
+        self.enabled_memory = self.declare_parameter('enabled_memory', Parameter.Type.BOOL).value
+        self.enabled_disk = self.declare_parameter('enabled_disk', Parameter.Type.BOOL).value
+        self.enabled_network = self.declare_parameter('enabled_network', Parameter.Type.BOOL).value
+        self.enabled_gpu = self.declare_parameter('enabled_gpu', Parameter.Type.BOOL).value
 
         if rate <= 0.0:
             raise ValueError(f'publish_rate must be > 0, got {rate}')
@@ -47,20 +41,20 @@ class SystemMonitorNode(Node):
         )
 
         if self.enabled_cpu:
-            self.cpu_pub = self.create_publisher(CpuMetrics, 'cpu', qos)
+            self.cpu_pub = self.create_publisher(CpuMetrics, '~/output/cpu', qos)
             cpu.warmup()
         if self.enabled_memory:
-            self.mem_pub = self.create_publisher(MemoryMetrics, 'memory', qos)
+            self.mem_pub = self.create_publisher(MemoryMetrics, '~/output/memory', qos)
         if self.enabled_disk:
-            self.disk_pub = self.create_publisher(DiskMetrics, 'disk', qos)
+            self.disk_pub = self.create_publisher(DiskMetrics, '~/output/disk', qos)
 
         self.network_sampler = NetworkSampler() if self.enabled_network else None
         if self.enabled_network:
-            self.net_pub = self.create_publisher(NetworkMetrics, 'network', qos)
+            self.net_pub = self.create_publisher(NetworkMetrics, '~/output/network', qos)
 
         self.gpu_sampler = GpuSampler() if self.enabled_gpu else None
         if self.enabled_gpu:
-            self.gpu_pub = self.create_publisher(GpuMetrics, 'gpu', qos)
+            self.gpu_pub = self.create_publisher(GpuMetrics, '~/output/gpu', qos)
 
         period = 1.0 / rate
         self.timer = self.create_timer(period, self.publish)
