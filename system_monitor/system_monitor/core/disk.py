@@ -6,17 +6,12 @@ Units:
 - percent: percentage (%)
 - io_read_count, io_write_count: count (cumulative)
 - io_read_bytes, io_write_bytes: bytes (cumulative)
-- io_read_time_ms, io_write_time_ms: milliseconds (cumulative)
-- io_busy_time_ms: milliseconds (cumulative, Linux only)
+- io_read_time_ms, io_write_time_ms, io_busy_time_ms: milliseconds (cumulative)
 """
 
-import platform
-import time
 from typing import List, TypedDict
 
 import psutil
-
-OS_TYPE = platform.system()
 
 
 class DiskPartitionUsage(TypedDict):
@@ -43,17 +38,8 @@ def get_disk_usage_per_partition() -> List[DiskPartitionUsage]:
     for part in psutil.disk_partitions(all=False):
         try:
             usage = psutil.disk_usage(part.mountpoint)
-            partitions.append(
-                {
-                    'mountpoint': part.mountpoint,
-                    'total_bytes': usage.total,
-                    'used_bytes': usage.used,
-                    'free_bytes': usage.free,
-                    'percent': usage.percent,
-                    'accessible': True,
-                }
-            )
-        except (PermissionError, FileNotFoundError, SystemError):
+        # A mount can deny this user access, or be unmounted after disk_partitions() listed it.
+        except (PermissionError, FileNotFoundError):
             partitions.append(
                 {
                     'mountpoint': part.mountpoint,
@@ -64,31 +50,22 @@ def get_disk_usage_per_partition() -> List[DiskPartitionUsage]:
                     'accessible': False,
                 }
             )
+            continue
+        partitions.append(
+            {
+                'mountpoint': part.mountpoint,
+                'total_bytes': usage.total,
+                'used_bytes': usage.used,
+                'free_bytes': usage.free,
+                'percent': usage.percent,
+                'accessible': True,
+            }
+        )
     return partitions
 
 
 def get_disk_io_total() -> DiskIOCounters:
     io = psutil.disk_io_counters(perdisk=False)
-
-    if io is None:
-        return {
-            'io_read_count': -1,
-            'io_write_count': -1,
-            'io_read_bytes': -1,
-            'io_write_bytes': -1,
-            'io_read_time_ms': -1,
-            'io_write_time_ms': -1,
-            'io_busy_time_ms': -1,
-        }
-
-    io_busy_time_ms = -1
-
-    match OS_TYPE:
-        case 'Linux':
-            io_busy_time_ms = io.busy_time
-        case 'Darwin' | 'Windows':
-            pass
-
     return {
         'io_read_count': io.read_count,
         'io_write_count': io.write_count,
@@ -96,21 +73,5 @@ def get_disk_io_total() -> DiskIOCounters:
         'io_write_bytes': io.write_bytes,
         'io_read_time_ms': io.read_time,
         'io_write_time_ms': io.write_time,
-        'io_busy_time_ms': io_busy_time_ms,
+        'io_busy_time_ms': io.busy_time,
     }
-
-
-if __name__ == '__main__':
-    start_time = time.perf_counter()
-
-    print('=== Disk Usage per Partition ===')
-    usage = get_disk_usage_per_partition()
-    for partition in usage:
-        print(partition)
-
-    print('\n=== Total Disk IO Counters ===')
-    io_total = get_disk_io_total()
-    print(io_total)
-
-    elapsed = time.perf_counter() - start_time
-    print(f'\nTime taken: {elapsed:.4f} seconds')

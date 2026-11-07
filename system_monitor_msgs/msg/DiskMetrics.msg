@@ -6,4 +6,4 @@ int64 io_read_bytes
 int64 io_write_bytes
 int64 io_read_time_ms
 int64 io_write_time_ms
-int64 io_busy_time_ms          # -1 if unavailable
+int64 io_busy_time_ms

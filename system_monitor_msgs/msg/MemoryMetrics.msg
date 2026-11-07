@@ -4,7 +4,7 @@ int64 available_bytes
 int64 used_bytes
 int64 free_bytes
 float32 percent
-int64 active_bytes             # -1 if unavailable
+int64 active_bytes
 int64 inactive_bytes
 int64 buffers_bytes
 int64 cached_bytes

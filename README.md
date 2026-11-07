@@ -6,20 +6,20 @@ A ROS2 package that collects local system metrics (CPU, memory, disk, network, G
 
 ```
 system_monitor/
-├── system_monitor_core/          # Python collection modules (no ROS2 dependency)
-│   ├── cpu.py
-│   ├── memory.py
-│   ├── disk.py
-│   ├── network.py
-│   ├── gpu.py
-│   └── system.py
-├── system_monitor/               # ROS2 package
-│   ├── scripts/
+├── system_monitor/               # ROS2 package (ament_python)
+│   ├── system_monitor/
+│   │   ├── core/                 # Collection modules (no ROS2 dependency)
+│   │   │   ├── cpu.py
+│   │   │   ├── memory.py
+│   │   │   ├── disk.py
+│   │   │   ├── network.py
+│   │   │   └── gpu.py
 │   │   └── system_monitor_node.py
 │   ├── config/
-│   │   └── params.yaml
-│   └── launch/
-│       └── system_monitor.launch.py
+│   │   └── system_monitor.param.yaml
+│   ├── launch/
+│   │   └── system_monitor.launch.py
+│   └── test/
 └── system_monitor_msgs/          # Custom message definitions
     └── msg/
         ├── CpuMetrics.msg
@@ -35,23 +35,24 @@ system_monitor/
 ## Dependencies
 
 ```bash
-pip install psutil nvidia-ml-py
+rosdep install --from-paths system_monitor --ignore-src -y
 ```
 
-- `psutil`: CPU, memory, disk, network collection
-- `nvidia-ml-py` (`pynvml`): GPU collection (optional — safe to omit if no NVIDIA GPU)
+- `python3-psutil`: CPU, memory, disk, network collection
+- `python3-pynvml`: GPU collection. The node imports it at start-up, so it must be installed even when `enabled_gpu` is false.
+- Linux only.
 
 ## Build & Run
 
 ```bash
 cd ~/dev/ros2_ws
-colcon build --packages-select system_monitor_msgs system_monitor
+colcon build --symlink-install --packages-select system_monitor_msgs system_monitor
 source install/setup.bash
 
 ros2 launch system_monitor system_monitor.launch.py
 ```
 
-## Parameters (params.yaml)
+## Parameters (system_monitor.param.yaml)
 
 | Parameter         | Default | Description            |
 | ----------------- | ------- | ---------------------- |
@@ -60,7 +61,7 @@ ros2 launch system_monitor system_monitor.launch.py
 | `enabled_memory`  | `true`  | Enable memory metrics  |
 | `enabled_disk`    | `true`  | Enable disk metrics    |
 | `enabled_network` | `true`  | Enable network metrics |
-| `enabled_gpu`     | `true`  | Enable GPU metrics     |
+| `enabled_gpu`     | `false` | Enable GPU metrics     |
 
 ## Published Topics
 
@@ -76,29 +77,29 @@ ros2 launch system_monitor system_monitor.launch.py
 
 ### CpuMetrics
 
-| Field                      | Type                      | Description                                         |
-| -------------------------- | ------------------------- | --------------------------------------------------- |
-| `stamp`                    | `builtin_interfaces/Time` | Timestamp                                           |
-| `usage_percent`            | `float32`                 | Overall CPU usage (%)                               |
-| `freq_current_mhz`         | `float32`                 | Current frequency (MHz)                             |
-| `temperature_celsius`      | `float32`                 | Temperature in degrees Celsius, -1.0 if unavailable |
-| `load_avg_1m/5m/15m`       | `float32`                 | Load average, -1.0 on Windows                       |
-| `iowait_seconds`           | `float64`                 | I/O wait time (s), -1.0 if unavailable              |
-| `user/system/idle_seconds` | `float64`                 | Cumulative CPU time (s)                             |
-| `ctx_switches`             | `int64`                   | Context switch count                                |
-| `interrupts`               | `int64`                   | Interrupt count                                     |
-| `soft_interrupts`          | `int64`                   | Soft interrupt count                                |
+| Field                      | Type                      | Description                                       |
+| -------------------------- | ------------------------- | ------------------------------------------------- |
+| `stamp`                    | `builtin_interfaces/Time` | Timestamp                                         |
+| `usage_percent`            | `float32`                 | Overall CPU usage (%)                             |
+| `freq_current_mhz`         | `float32`                 | Current frequency (MHz)                           |
+| `temperature_celsius`      | `float32`                 | Temperature in degrees Celsius, -1.0 if no sensor |
+| `load_avg_1m/5m/15m`       | `float32`                 | Load average                                      |
+| `iowait_seconds`           | `float64`                 | I/O wait time (s)                                 |
+| `user/system/idle_seconds` | `float64`                 | Cumulative CPU time (s)                           |
+| `ctx_switches`             | `int64`                   | Context switch count                              |
+| `interrupts`               | `int64`                   | Interrupt count                                   |
+| `soft_interrupts`          | `int64`                   | Soft interrupt count                              |
 
 ### MemoryMetrics
 
-| Field                                              | Type                      | Description                        |
-| -------------------------------------------------- | ------------------------- | ---------------------------------- |
-| `stamp`                                            | `builtin_interfaces/Time` | Timestamp                          |
-| `total/available/used/free_bytes`                  | `int64`                   | Memory size (bytes)                |
-| `percent`                                          | `float32`                 | Usage (%)                          |
-| `active/inactive/buffers/cached/shared/slab_bytes` | `int64`                   | Detailed memory, -1 if unavailable |
-| `swap_total/used/free_bytes`                       | `int64`                   | Swap size (bytes)                  |
-| `swap_percent`                                     | `float32`                 | Swap usage (%)                     |
+| Field                                              | Type                      | Description             |
+| -------------------------------------------------- | ------------------------- | ----------------------- |
+| `stamp`                                            | `builtin_interfaces/Time` | Timestamp               |
+| `total/available/used/free_bytes`                  | `int64`                   | Memory size (bytes)     |
+| `percent`                                          | `float32`                 | Usage (%)               |
+| `active/inactive/buffers/cached/shared/slab_bytes` | `int64`                   | Detailed memory (bytes) |
+| `swap_total/used/free_bytes`                       | `int64`                   | Swap size (bytes)       |
+| `swap_percent`                                     | `float32`                 | Swap usage (%)          |
 
 ### DiskMetrics
 
@@ -109,7 +110,7 @@ ros2 launch system_monitor system_monitor.launch.py
 | `io_read/write_count`   | `int64`                   | Cumulative read/write count        |
 | `io_read/write_bytes`   | `int64`                   | Cumulative read/write size (bytes) |
 | `io_read/write_time_ms` | `int64`                   | Cumulative read/write time (ms)    |
-| `io_busy_time_ms`       | `int64`                   | Disk busy time (ms), Linux only    |
+| `io_busy_time_ms`       | `int64`                   | Disk busy time (ms)                |
 
 ### DiskPartitionUsage
 
@@ -156,8 +157,8 @@ ros2 launch system_monitor system_monitor.launch.py
 | Field                 | Type      | Description                          |
 | --------------------- | --------- | ------------------------------------ |
 | `index`               | `int32`   | GPU index                            |
-| `utilization_percent` | `float32` | Utilization (%), -1.0 if unavailable |
+| `utilization_percent` | `float32` | Utilization (%), -1.0 if unsupported |
 | `memory_used_mb`      | `float32` | Used VRAM (MB)                       |
 | `memory_total_mb`     | `float32` | Total VRAM (MB)                      |
-| `temperature_celsius` | `float32` | Temperature in degrees Celsius       |
-| `power_watts`         | `float32` | Power draw (W)                       |
+| `temperature_celsius` | `float32` | Degrees Celsius, -1.0 if unsupported |
+| `power_watts`         | `float32` | Power draw (W), -1.0 if unsupported  |

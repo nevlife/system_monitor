@@ -19,7 +19,7 @@ class NetworkSampler:
     def sample(self) -> Dict[str, Any]:
         current_io = psutil.net_io_counters(pernic=True)
         current_time = time.monotonic()
-        time_delta = max(current_time - self._prev_time, 1e-6)
+        time_delta = current_time - self._prev_time
 
         if_stats = psutil.net_if_stats()
 
@@ -68,17 +68,3 @@ class NetworkSampler:
             },
             'interfaces': interfaces_data,
         }
-
-
-if __name__ == '__main__':
-    import json
-
-    print('--- Creating sampler (establishes baseline) ---')
-    sampler = NetworkSampler()
-
-    print('Waiting 2 seconds to measure traffic...')
-    time.sleep(2)
-
-    print('\n--- Sampling network info ---')
-    network_info = sampler.sample()
-    print(json.dumps(network_info, indent=2))
