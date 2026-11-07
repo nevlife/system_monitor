@@ -7,12 +7,13 @@ Units:
 - user started: Unix timestamp
 """
 
-import socket
-import platform
-import psutil
 from datetime import datetime
-from typing import TypedDict, List
+import platform
+import socket
 import time
+from typing import List, TypedDict
+
+import psutil
 
 OS_TYPE = platform.system()
 
@@ -58,43 +59,45 @@ def get_system_static_metadata() -> SystemStatic:
             'version': platform.version(),
             'machine': platform.machine(),
             'processor': platform.processor(),
-            'platform': platform.platform()
+            'platform': platform.platform(),
         },
         'python_version': platform.python_version(),
         'boot_time': boot_time,
-        'boot_time_iso': datetime.fromtimestamp(boot_time).isoformat()
+        'boot_time_iso': datetime.fromtimestamp(boot_time).isoformat(),
     }
 
 
 def get_system_dynamic_metrics() -> SystemDynamic:
     users = []
     for user in psutil.users():
-        users.append({
-            'name': user.name,
-            'terminal': user.terminal,
-            'host': user.host,
-            'started': user.started
-        })
+        users.append(
+            {
+                'name': user.name,
+                'terminal': user.terminal,
+                'host': user.host,
+                'started': user.started,
+            }
+        )
 
     return {
         'timestamp': datetime.now().isoformat(),
         'uptime': time.time() - psutil.boot_time(),
-        'users': users
+        'users': users,
     }
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     start_time = time.perf_counter()
 
-    print("=== System Static Metadata ===")
+    print('=== System Static Metadata ===')
     static = get_system_static_metadata()
     for key, value in static.items():
-        print(f"{key}: {value}")
+        print(f'{key}: {value}')
 
-    print("\n=== System Dynamic Metrics ===")
+    print('\n=== System Dynamic Metrics ===')
     dynamic = get_system_dynamic_metrics()
     for key, value in dynamic.items():
-        print(f"{key}: {value}")
+        print(f'{key}: {value}')
 
     elapsed = time.perf_counter() - start_time
-    print(f"\nTime taken: {elapsed:.4f} seconds")
+    print(f'\nTime taken: {elapsed:.4f} seconds')

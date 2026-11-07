@@ -5,8 +5,14 @@ from system_monitor.core import network
 
 def counters(recv, sent):
     return SimpleNamespace(
-        bytes_recv=recv, bytes_sent=sent, packets_recv=0, packets_sent=0,
-        errin=0, errout=0, dropin=0, dropout=0,
+        bytes_recv=recv,
+        bytes_sent=sent,
+        packets_recv=0,
+        packets_sent=0,
+        errin=0,
+        errout=0,
+        dropin=0,
+        dropout=0,
     )
 
 
@@ -15,10 +21,14 @@ def test_rates_come_from_the_previous_sample(monkeypatch):
     now = [10.0]
     monkeypatch.setattr(network.psutil, 'net_io_counters', lambda pernic: dict(io))
     monkeypatch.setattr(network.time, 'monotonic', lambda: now[0])
-    monkeypatch.setattr(network.psutil, 'net_if_stats', lambda: {
-        'eth0': SimpleNamespace(isup=True, mtu=1500, speed=1000),
-        'lo': SimpleNamespace(isup=False, mtu=65536, speed=0),
-    })
+    monkeypatch.setattr(
+        network.psutil,
+        'net_if_stats',
+        lambda: {
+            'eth0': SimpleNamespace(isup=True, mtu=1500, speed=1000),
+            'lo': SimpleNamespace(isup=False, mtu=65536, speed=0),
+        },
+    )
     sampler = network.NetworkSampler()
 
     io['eth0'] = counters(3000, 1500)

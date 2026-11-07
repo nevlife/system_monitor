@@ -3,17 +3,18 @@ CPU metrics collection.
 
 Units:
 - freq_current_mhz: MHz
-- temperature_celsius: Celsius (°C)
+- temperature_celsius: degrees Celsius
 - load_avg_1m/5m/15m: 1/5/15 minute averages
 - user_seconds, system_seconds, idle_seconds, iowait_seconds: seconds
 - ctx_switches, interrupts, soft_interrupts: count
 - usage_percent: percentage (%)
 """
 
-import psutil
 import platform
-from typing import TypedDict
 import time
+from typing import TypedDict
+
+import psutil
 
 OS_TYPE = platform.system()
 
@@ -53,7 +54,7 @@ def get_cpu_static_metadata() -> CPUStatic:
         'logical_cores': psutil.cpu_count(logical=True),
         'physical_cores': psutil.cpu_count(logical=False),
         'freq_min': freq.min,
-        'freq_max': freq.max
+        'freq_max': freq.max,
     }
 
 
@@ -71,14 +72,25 @@ def get_cpu_dynamic_metrics() -> CPUDynamic:
     match OS_TYPE:
         case 'Linux':
             temps = psutil.sensors_temperatures()
-            sensor_list = temps.get('coretemp', temps.get('cpu_thermal', temps.get('k10temp', temps.get('zenpower', []))))
+            sensor_list = temps.get(
+                'coretemp',
+                temps.get('cpu_thermal', temps.get('k10temp', temps.get('zenpower', []))),
+            )
             temperature_celsius = float(sensor_list[0].current) if sensor_list else -1.0
             load_avg = psutil.getloadavg()
-            load_avg_1m, load_avg_5m, load_avg_15m = float(load_avg[0]), float(load_avg[1]), float(load_avg[2])
+            load_avg_1m, load_avg_5m, load_avg_15m = (
+                float(load_avg[0]),
+                float(load_avg[1]),
+                float(load_avg[2]),
+            )
             iowait_seconds = float(times.iowait)
         case 'Darwin':
             load_avg = psutil.getloadavg()
-            load_avg_1m, load_avg_5m, load_avg_15m = float(load_avg[0]), float(load_avg[1]), float(load_avg[2])
+            load_avg_1m, load_avg_5m, load_avg_15m = (
+                float(load_avg[0]),
+                float(load_avg[1]),
+                float(load_avg[2]),
+            )
             iowait_seconds = float(times.iowait)
         case 'Windows':
             pass
@@ -96,25 +108,25 @@ def get_cpu_dynamic_metrics() -> CPUDynamic:
         'idle_seconds': times.idle,
         'ctx_switches': stats.ctx_switches,
         'interrupts': stats.interrupts,
-        'soft_interrupts': stats.soft_interrupts
+        'soft_interrupts': stats.soft_interrupts,
     }
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     start_time = time.perf_counter()
 
     warmup()
     time.sleep(0.1)
 
-    print("=== CPU Static Metadata ===")
+    print('=== CPU Static Metadata ===')
     static = get_cpu_static_metadata()
     for key, value in static.items():
-        print(f"{key}: {value}")
+        print(f'{key}: {value}')
 
-    print("\n=== CPU Dynamic Metrics ===")
+    print('\n=== CPU Dynamic Metrics ===')
     dynamic = get_cpu_dynamic_metrics()
     for key, value in dynamic.items():
-        print(f"{key}: {value}")
+        print(f'{key}: {value}')
 
     elapsed = time.perf_counter() - start_time
-    print(f"\nTime taken: {elapsed:.4f} seconds")
+    print(f'\nTime taken: {elapsed:.4f} seconds')

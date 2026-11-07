@@ -10,10 +10,11 @@ Units:
 - io_busy_time_ms: milliseconds (cumulative, Linux only)
 """
 
-import psutil
 import platform
-from typing import TypedDict, List
 import time
+from typing import List, TypedDict
+
+import psutil
 
 OS_TYPE = platform.system()
 
@@ -42,23 +43,27 @@ def get_disk_usage_per_partition() -> List[DiskPartitionUsage]:
     for part in psutil.disk_partitions(all=False):
         try:
             usage = psutil.disk_usage(part.mountpoint)
-            partitions.append({
-                'mountpoint': part.mountpoint,
-                'total_bytes': usage.total,
-                'used_bytes': usage.used,
-                'free_bytes': usage.free,
-                'percent': usage.percent,
-                'accessible': True,
-            })
+            partitions.append(
+                {
+                    'mountpoint': part.mountpoint,
+                    'total_bytes': usage.total,
+                    'used_bytes': usage.used,
+                    'free_bytes': usage.free,
+                    'percent': usage.percent,
+                    'accessible': True,
+                }
+            )
         except (PermissionError, FileNotFoundError, SystemError):
-            partitions.append({
-                'mountpoint': part.mountpoint,
-                'total_bytes': 0,
-                'used_bytes': 0,
-                'free_bytes': 0,
-                'percent': 0.0,
-                'accessible': False,
-            })
+            partitions.append(
+                {
+                    'mountpoint': part.mountpoint,
+                    'total_bytes': 0,
+                    'used_bytes': 0,
+                    'free_bytes': 0,
+                    'percent': 0.0,
+                    'accessible': False,
+                }
+            )
     return partitions
 
 
@@ -95,17 +100,17 @@ def get_disk_io_total() -> DiskIOCounters:
     }
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     start_time = time.perf_counter()
 
-    print("=== Disk Usage per Partition ===")
+    print('=== Disk Usage per Partition ===')
     usage = get_disk_usage_per_partition()
     for partition in usage:
         print(partition)
 
-    print("\n=== Total Disk IO Counters ===")
+    print('\n=== Total Disk IO Counters ===')
     io_total = get_disk_io_total()
     print(io_total)
 
     elapsed = time.perf_counter() - start_time
-    print(f"\nTime taken: {elapsed:.4f} seconds")
+    print(f'\nTime taken: {elapsed:.4f} seconds')

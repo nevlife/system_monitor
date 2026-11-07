@@ -9,10 +9,11 @@ Units:
 - swap_sin, swap_sout: bytes (cumulative)
 """
 
-import psutil
 import platform
-from typing import TypedDict
 import time
+from typing import TypedDict
+
+import psutil
 
 OS_TYPE = platform.system()
 
@@ -45,10 +46,7 @@ class MemoryDynamic(TypedDict):
 def get_memory_static_metadata() -> MemoryStatic:
     vm = psutil.virtual_memory()
     swap = psutil.swap_memory()
-    return {
-        'total': vm.total,
-        'swap_total': swap.total
-    }
+    return {'total': vm.total, 'swap_total': swap.total}
 
 
 def get_memory_dynamic_metrics() -> MemoryDynamic:
@@ -97,22 +95,22 @@ def get_memory_dynamic_metrics() -> MemoryDynamic:
         'swap_free': swap.free,
         'swap_percent': swap.percent,
         'swap_sin': swap_sin,
-        'swap_sout': swap_sout
+        'swap_sout': swap_sout,
     }
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     start_time = time.perf_counter()
 
-    print("=== Memory Static Metadata ===")
+    print('=== Memory Static Metadata ===')
     static = get_memory_static_metadata()
     for key, value in static.items():
-        print(f"{key}: {value}")
+        print(f'{key}: {value}')
 
-    print("\n=== Memory Dynamic Metrics ===")
+    print('\n=== Memory Dynamic Metrics ===')
     dynamic = get_memory_dynamic_metrics()
     for key, value in dynamic.items():
-        print(f"{key}: {value}")
+        print(f'{key}: {value}')
 
     elapsed = time.perf_counter() - start_time
-    print(f"\nTime taken: {elapsed:.4f} seconds")
+    print(f'\nTime taken: {elapsed:.4f} seconds')

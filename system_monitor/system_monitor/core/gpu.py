@@ -4,18 +4,19 @@ GPU metrics collection using pynvml.
 Units:
 - utilization_percent: percentage (%)
 - memory_used_mb, memory_total_mb: MB
-- temperature_celsius: Celsius (°C)
+- temperature_celsius: degrees Celsius
 - power_watts: Watts (W)
 
 NVML is initialised once per GpuSampler instance and shut down via close().
 """
 
 import platform
-from typing import TypedDict, List, Dict, Any
 import time
+from typing import List, TypedDict
 
 try:
     import pynvml
+
     _PYNVML_AVAILABLE = True
 except ImportError:
     _PYNVML_AVAILABLE = False
@@ -116,34 +117,36 @@ class GpuSampler:
             except pynvml.NVMLError:
                 power_watts = -1.0
 
-            gpus.append({
-                'index': i,
-                'utilization_percent': utilization_percent,
-                'memory_used_mb': memory_used_mb,
-                'memory_total_mb': memory_total_mb,
-                'temperature_celsius': temperature_celsius,
-                'power_watts': power_watts,
-            })
+            gpus.append(
+                {
+                    'index': i,
+                    'utilization_percent': utilization_percent,
+                    'memory_used_mb': memory_used_mb,
+                    'memory_total_mb': memory_total_mb,
+                    'temperature_celsius': temperature_celsius,
+                    'power_watts': power_watts,
+                }
+            )
 
         return {'gpus': gpus}
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     start_time = time.perf_counter()
 
     sampler = GpuSampler()
     try:
-        print("=== GPU Static Metadata ===")
+        print('=== GPU Static Metadata ===')
         static = sampler.static_metadata()
         for key, value in static.items():
-            print(f"{key}: {value}")
+            print(f'{key}: {value}')
 
-        print("\n=== GPU Dynamic Metrics ===")
+        print('\n=== GPU Dynamic Metrics ===')
         dynamic = sampler.sample()
         for key, value in dynamic.items():
-            print(f"{key}: {value}")
+            print(f'{key}: {value}')
     finally:
         sampler.close()
 
     elapsed = time.perf_counter() - start_time
-    print(f"\nTime taken: {elapsed:.4f} seconds")
+    print(f'\nTime taken: {elapsed:.4f} seconds')

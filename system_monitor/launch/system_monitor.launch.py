@@ -1,4 +1,5 @@
 import os
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
@@ -17,6 +18,8 @@ def generate_launch_description():
         remappings=[(f'~/output/{t}', t) for t in ('cpu', 'memory', 'disk', 'network', 'gpu')],
     )
 
-    return LaunchDescription([
-        system_monitor_node,
-    ])
+    return LaunchDescription(
+        [
+            system_monitor_node,
+        ]
+    )

@@ -5,9 +5,10 @@ Per-second throughput is computed from the delta between successive samples,
 so consumers must hold a NetworkSampler instance across calls.
 """
 
-import psutil
 import time
-from typing import Dict, Any
+from typing import Any, Dict
+
+import psutil
 
 
 class NetworkSampler:
@@ -72,12 +73,12 @@ class NetworkSampler:
 if __name__ == '__main__':
     import json
 
-    print("--- Creating sampler (establishes baseline) ---")
+    print('--- Creating sampler (establishes baseline) ---')
     sampler = NetworkSampler()
 
-    print("Waiting 2 seconds to measure traffic...")
+    print('Waiting 2 seconds to measure traffic...')
     time.sleep(2)
 
-    print("\n--- Sampling network info ---")
+    print('\n--- Sampling network info ---')
     network_info = sampler.sample()
     print(json.dumps(network_info, indent=2))
