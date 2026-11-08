@@ -1,10 +1,8 @@
 """
-Radio environment map: link samples kept per grid cell, for predicting the link ahead.
+Radio environment map: link samples kept per grid cell of latitude and longitude.
 
-Predictive QoS for tele-operated driving (5GAA) looks up the quality measured earlier at the
-places the vehicle is about to reach. Each cell keeps its newest samples and drops old ones, as
-networks change over weeks. Location alone predicts poorly (Lumos5G), so samples also keep the
-speed they were taken at. The lookahead follows the current velocity.
+Drive tests map coverage this way, and predictive QoS for tele-operated driving (5GAA) builds on
+such maps. Each cell keeps its newest samples and ignores old ones, as networks change over weeks.
 """
 
 from collections import deque
@@ -33,12 +31,12 @@ class RadioMap:
         x, y = self._xy(lat, lon)
         return int(math.floor(x / self.cell_m)), int(math.floor(y / self.cell_m))
 
-    def add(self, t, lat, lon, speed_mps, link):
+    def add(self, t, lat, lon, link):
         if self.origin is None:
             self.origin = (lat, lon)
         key = self.cell_of(lat, lon)
         cell = self.cells.setdefault(key, deque(maxlen=self.per_cell))
-        cell.append([t, speed_mps] + [link[m] for m in METRICS])
+        cell.append([t] + [link[m] for m in METRICS])
 
     def stats(self, key, now):
         """Return the 90th percentile of each metric over the cell's recent samples, or None."""
@@ -47,22 +45,9 @@ class RadioMap:
             return None
         out = {'samples': len(rows)}
         for i, m in enumerate(METRICS):
-            values = sorted(r[2 + i] for r in rows if not math.isnan(r[2 + i]))
+            values = sorted(r[1 + i] for r in rows if not math.isnan(r[1 + i]))
             out[m] = values[min(len(values) - 1, int(0.9 * len(values)))] if values else math.nan
         return out
-
-    def lookahead(self, now, lat, lon, offsets):
-        """Yield (seconds ahead, cell stats or None) for (dt, east m, north m) offsets."""
-        if self.origin is None:
-            return
-        x, y = self._xy(lat, lon)
-        seen = set()
-        for dt, east, north in offsets:
-            key = (int(math.floor((x + east) / self.cell_m)),
-                   int(math.floor((y + north) / self.cell_m)))
-            if key not in seen:
-                seen.add(key)
-                yield dt, self.stats(key, now)
 
     def save(self, path):
         with open(path, 'w') as f:
@@ -77,26 +62,3 @@ class RadioMap:
         for i, j, rows in data['cells']:
             m.cells[(i, j)] = deque(rows, maxlen=per_cell)
         return m
-
-
-def velocity_offsets(east_mps, north_mps, horizon_s, step_s):
-    """Offsets along a straight line at the current velocity."""
-    return [(k * step_s, east_mps * k * step_s, north_mps * k * step_s)
-            for k in range(int(horizon_s / step_s) + 1)]
-
-
-def predict(radio_map, now, lat, lon, offsets, degraded):
-    """Summarize the cells at the offsets ahead; degraded(stats) decides when trouble starts."""
-    first = math.nan
-    worst = {m: math.nan for m in METRICS}
-    known = 0
-    for dt, s in radio_map.lookahead(now, lat, lon, offsets):
-        if s is None:
-            continue
-        known += s['samples']
-        for m in METRICS:
-            worst[m] = max(worst[m], s[m]) if not math.isnan(worst[m]) else s[m]
-        if math.isnan(first) and degraded(s):
-            first = dt
-    return {'degraded_in_s': first, 'samples_ahead': known, **{'worst_' + m: worst[m]
-                                                               for m in METRICS}}

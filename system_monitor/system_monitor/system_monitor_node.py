@@ -3,7 +3,6 @@ import math
 import os
 import time
 
-from geometry_msgs.msg import TwistWithCovarianceStamped
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -21,9 +20,7 @@ from system_monitor.core import modem
 from system_monitor.core import rtk
 from system_monitor.core.gpu import GpuSampler
 from system_monitor.core.network import NetworkSampler
-from system_monitor.core.radio_map import predict
 from system_monitor.core.radio_map import RadioMap
-from system_monitor.core.radio_map import velocity_offsets
 from system_monitor_msgs.msg import CpuMetrics
 from system_monitor_msgs.msg import DiskMetrics
 from system_monitor_msgs.msg import DiskPartitionUsage
@@ -84,13 +81,9 @@ class SystemMonitorNode(Node):
             self.fix = None
             self.last_cell = ''
             self.create_subscription(NavSatFix, '~/input/fix', self.on_fix, qos)
-            self.velocity = (0.0, 0.0)
-            self.create_subscription(
-                TwistWithCovarianceStamped, '~/input/fix_velocity', self.on_velocity, qos)
             self.map_path = self.declare_parameter('link_map_path', Parameter.Type.STRING).value
             cell_m = self.declare_parameter('link_map_cell_m', Parameter.Type.DOUBLE).value
             max_age = self.declare_parameter('link_map_max_age_s', Parameter.Type.DOUBLE).value
-            self.horizon = self.declare_parameter('link_horizon_s', Parameter.Type.DOUBLE).value
             self.radio_map = None
             self.map_updates = 0
             if self.map_path:
@@ -136,10 +129,6 @@ class SystemMonitorNode(Node):
     def on_fix(self, msg):
         self.fix = msg
 
-    def on_velocity(self, msg):
-        v = msg.twist.twist.linear
-        self.velocity = (v.x, v.y)
-
     def on_rtcm(self, _msg):
         self.rtcm.add(time.monotonic())
 
@@ -173,24 +162,10 @@ class SystemMonitorNode(Node):
         self.link_pub.publish(msg)
 
     def update_map(self, msg, data):
-        msg.predicted_degraded_in_s = math.nan
-        msg.predicted_rtt_p95_ms = math.nan
-        msg.predicted_loss_percent = math.nan
-        msg.predicted_outage_ms = math.nan
-        if self.radio_map is None or math.isnan(msg.latitude):
+        if self.radio_map is None or math.isnan(msg.latitude) or not data['probes_sent']:
             return
         now = self.get_clock().now().nanoseconds / 1e9
-        east, north = self.velocity
-        pr = predict(self.radio_map, now, msg.latitude, msg.longitude,
-                     velocity_offsets(east, north, self.horizon, 1.0),
-                     lambda s: link.is_degraded(s, data['rtt_min_ever_ms']))
-        msg.predicted_degraded_in_s = pr['degraded_in_s']
-        msg.predicted_rtt_p95_ms = pr['worst_rtt_p95_ms']
-        msg.predicted_loss_percent = pr['worst_loss_percent']
-        msg.predicted_outage_ms = pr['worst_longest_outage_ms']
-        msg.map_samples_ahead = pr['samples_ahead']
-        if data['probes_sent']:
-            self.radio_map.add(now, msg.latitude, msg.longitude, math.hypot(east, north), data)
+        self.radio_map.add(now, msg.latitude, msg.longitude, data)
         self.map_updates += 1
         if self.map_updates % 60 == 0:
             self.radio_map.save(self.map_path)

@@ -74,7 +74,6 @@ ros2 launch system_monitor system_monitor.launch.py
 | `link_map_path`      | `''`        | Radio map file, loaded at start and saved every minute and at exit; empty disables the map                                        |
 | `link_map_cell_m`    | `5.0`       | Grid cell size of a new map (m)                                                                                                   |
 | `link_map_max_age_s` | `2592000.0` | Samples older than this are ignored (s)                                                                                           |
-| `link_horizon_s`     | `15.0`      | How far ahead the prediction looks (s)                                                                                            |
 
 ## Published Topics
 
@@ -179,7 +178,7 @@ ros2 launch system_monitor system_monitor.launch.py
 
 ### LinkQuality
 
-Probes are UDP datagrams sent on a fixed period (as irtt does) to `link_echo`, which returns each one to its sender and so also works when the vehicle is behind a cellular NAT. The echo appends its receive time, as STAMP (RFC 8762) reflectors do; the two clocks differ by an unknown but constant offset, so each direction's one-way delay above its own minimum is the queueing in that direction. Run it on the remote side with `ros2 run system_monitor link_echo --port 13440`, or copy `link_echo.py`, which needs only Python. Subscribes to `~/input/fix` (`sensor_msgs/NavSatFix`), `~/input/fix_velocity` (`geometry_msgs/TwistWithCovarianceStamped`, east and north in `linear.x/y`) and `~/input/rtcm` (`rtcm_msgs/Message`), which the launch file connects to the u-blox and NTRIP topics. Positions stay in latitude and longitude, so no map frame, localization or planner is assumed.
+Probes are UDP datagrams sent on a fixed period (as irtt does) to `link_echo`, which returns each one to its sender and so also works when the vehicle is behind a cellular NAT. The echo appends its receive time, as STAMP (RFC 8762) reflectors do; the two clocks differ by an unknown but constant offset, so each direction's one-way delay above its own minimum is the queueing in that direction. Run it on the remote side with `ros2 run system_monitor link_echo --port 13440`, or copy `link_echo.py`, which needs only Python. Subscribes to `~/input/fix` (`sensor_msgs/NavSatFix`) and `~/input/rtcm` (`rtcm_msgs/Message`), which the launch file connects to the u-blox and NTRIP topics. Positions stay in latitude and longitude, so no map frame, localization or planner is assumed.
 
 RTK corrections reach the vehicle over the same cellular link, about once a second, so they are a second link indicator that costs no probe traffic. When the fix is not RTK fixed, late corrections point at the link and fresh ones at the sky or the receiver. The u-blox driver reports RTK fixed as `STATUS_GBAS_FIX`.
 
@@ -199,11 +198,8 @@ RTK corrections reach the vehicle over the same cellular link, about once a seco
 | `latitude/longitude`                          | `float64`                 | Last GPS fix, NaN before the first                                                                                             |
 | `rtcm_age_s/rtcm_max_gap_s`                   | `float64`                 | Age of the newest RTK correction and the longest gap between corrections in the window (s), NaN without corrections            |
 | `rtk`                                         | `string`                  | `FIXED`, `CORRECTIONS_LATE` (the link), `SKY_OR_RECEIVER`, `NO_CORRECTIONS`, or empty before the first fix                     |
-| `predicted_degraded_in_s`                     | `float64`                 | Seconds until the first map cell ahead that was degraded, NaN if none                                                          |
-| `predicted_rtt_p95_ms/loss_percent/outage_ms` | `float64`                 | Worst cell value ahead (90th percentile of its samples)                                                                        |
-| `map_samples_ahead`                           | `uint32`                  | Map samples behind the prediction; 0 means the road ahead is unmapped                                                          |
 | `diagnosis`                                   | `string`                  | `OK`, `NO_LINK`, `HANDOVER`, `WEAK_SIGNAL`, `INTERFERENCE`, `CONGESTION`, or `DEGRADED`                                        |
 
 The link counts as degraded when loss is above 2%, the 95th percentile round trip is more than 100 ms above the baseline, or no reply came for more than 300 ms. The cause is then taken, in this order, from a cell id change, RSRP below -110 dBm, SINR below 0 dB, or else congestion when the signal is good. Without a modem the cause stays `DEGRADED`. A phone used as a USB tether reports no modem values. The ModemManager key names have not yet been checked against a real modem.
 
-With `link_map_path` set, each sample is also stored in a radio environment map, a grid of cells that keep their newest 50 samples. Predictive QoS for tele-operated driving (5GAA) works the same way: it looks up what was measured at the places the vehicle is about to reach. The prediction looks straight ahead at the current velocity, so it misses turns. A map only helps on roads driven before, and the thresholds above decide when a cell counts as degraded.
+With `link_map_path` set, each sample is also stored by position in a radio environment map, a grid of cells that keep their newest 50 samples, as drive tests map coverage. The map records where the link was bad; it does not predict.

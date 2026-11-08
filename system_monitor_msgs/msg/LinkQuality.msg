@@ -32,12 +32,5 @@ string rtk
 float64 latitude
 float64 longitude
 
-# Prediction from the radio map along the current velocity (NaN or 0 without map data ahead).
-float64 predicted_degraded_in_s
-float64 predicted_rtt_p95_ms
-float64 predicted_loss_percent
-float64 predicted_outage_ms
-uint32 map_samples_ahead
-
 # OK, NO_LINK, HANDOVER, WEAK_SIGNAL, INTERFERENCE, CONGESTION, or DEGRADED (cause unknown).
 string diagnosis

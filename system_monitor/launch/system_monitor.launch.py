@@ -17,7 +17,6 @@ def generate_launch_description():
         parameters=[params_file],
         remappings=[(f'~/output/{t}', t) for t in ('cpu', 'memory', 'disk', 'network', 'gpu', 'link')]
         + [('~/input/fix', '/ublox_gps_node/fix'),
-           ('~/input/fix_velocity', '/ublox_gps_node/fix_velocity'),
            ('~/input/rtcm', '/rtcm')],
     )
 
