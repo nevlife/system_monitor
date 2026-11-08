@@ -4,12 +4,10 @@ import os
 import time
 
 from geometry_msgs.msg import TwistWithCovarianceStamped
-from nav_msgs.msg import Path
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.parameter import Parameter
-from rclpy.qos import DurabilityPolicy
 from rclpy.qos import HistoryPolicy
 from rclpy.qos import QoSProfile
 from rclpy.qos import ReliabilityPolicy
@@ -22,11 +20,9 @@ from system_monitor.core import memory
 from system_monitor.core import modem
 from system_monitor.core import rtk
 from system_monitor.core.gpu import GpuSampler
-from system_monitor.core.map_frame import UtmMapFrame
 from system_monitor.core.network import NetworkSampler
 from system_monitor.core.radio_map import predict
 from system_monitor.core.radio_map import RadioMap
-from system_monitor.core.radio_map import route_offsets
 from system_monitor.core.radio_map import velocity_offsets
 from system_monitor_msgs.msg import CpuMetrics
 from system_monitor_msgs.msg import DiskMetrics
@@ -100,15 +96,6 @@ class SystemMonitorNode(Node):
             if self.map_path:
                 self.radio_map = (RadioMap.load(self.map_path, max_age)
                                   if os.path.exists(self.map_path) else RadioMap(cell_m, max_age))
-            # The route's frame is UTM minus this datum (navsat_transform's), so the GPS fix
-            # places the vehicle on it without localization.
-            datum = self.declare_parameter(
-                'link_route_datum', Parameter.Type.DOUBLE_ARRAY).value
-            self.map_frame = UtmMapFrame(datum[0], datum[1]) if len(datum) >= 2 else None
-            self.route = []
-            latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
-                                 durability=DurabilityPolicy.TRANSIENT_LOCAL)
-            self.create_subscription(Path, '~/input/route', self.on_route, latched)
             self.rtcm = rtk.RtcmTracker(window)
             self.create_subscription(Rtcm, '~/input/rtcm', self.on_rtcm, 10)
 
@@ -153,9 +140,6 @@ class SystemMonitorNode(Node):
         v = msg.twist.twist.linear
         self.velocity = (v.x, v.y)
 
-    def on_route(self, msg):
-        self.route = [(p.pose.position.x, p.pose.position.y) for p in msg.poses]
-
     def on_rtcm(self, _msg):
         self.rtcm.add(time.monotonic())
 
@@ -197,14 +181,8 @@ class SystemMonitorNode(Node):
             return
         now = self.get_clock().now().nanoseconds / 1e9
         east, north = self.velocity
-        offsets = None
-        if self.map_frame and self.route:
-            here = self.map_frame.to_map(msg.latitude, msg.longitude)
-            offsets = route_offsets(self.route, here, math.hypot(east, north), self.horizon, 1.0)
-        msg.prediction_source = 'route' if offsets else 'velocity'
-        if offsets is None:
-            offsets = velocity_offsets(east, north, self.horizon, 1.0)
-        pr = predict(self.radio_map, now, msg.latitude, msg.longitude, offsets,
+        pr = predict(self.radio_map, now, msg.latitude, msg.longitude,
+                     velocity_offsets(east, north, self.horizon, 1.0),
                      lambda s: link.is_degraded(s, data['rtt_min_ever_ms']))
         msg.predicted_degraded_in_s = pr['degraded_in_s']
         msg.predicted_rtt_p95_ms = pr['worst_rtt_p95_ms']

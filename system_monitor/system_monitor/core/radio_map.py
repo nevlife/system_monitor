@@ -4,8 +4,7 @@ Radio environment map: link samples kept per grid cell, for predicting the link 
 Predictive QoS for tele-operated driving (5GAA) looks up the quality measured earlier at the
 places the vehicle is about to reach. Each cell keeps its newest samples and drops old ones, as
 networks change over weeks. Location alone predicts poorly (Lumos5G), so samples also keep the
-speed they were taken at. The lookahead follows the planned route when there is one, else the
-current velocity.
+speed they were taken at. The lookahead follows the current velocity.
 """
 
 from collections import deque
@@ -84,34 +83,6 @@ def velocity_offsets(east_mps, north_mps, horizon_s, step_s):
     """Offsets along a straight line at the current velocity."""
     return [(k * step_s, east_mps * k * step_s, north_mps * k * step_s)
             for k in range(int(horizon_s / step_s) + 1)]
-
-
-def route_offsets(route, here, speed_mps, horizon_s, step_s, max_off_route_m=20.0):
-    """
-    Offsets along a route of (x, y) points from its point nearest to here, at the current speed.
-
-    The route frame must have x east and y north, as a UTM-aligned map frame has. Returns None
-    when the vehicle is farther than max_off_route_m from the route.
-    """
-    i = min(range(len(route)), key=lambda k: math.dist(route[k], here))
-    if math.dist(route[i], here) > max_off_route_m:
-        return None
-    pts = [here] + route[i + 1:]
-    out = []
-    seg, done = 0, 0.0
-    for k in range(int(horizon_s / step_s) + 1):
-        want = speed_mps * k * step_s
-        while seg + 1 < len(pts) and done + math.dist(pts[seg], pts[seg + 1]) < want:
-            done += math.dist(pts[seg], pts[seg + 1])
-            seg += 1
-        if seg + 1 < len(pts):
-            a, b = pts[seg], pts[seg + 1]
-            f = (want - done) / (math.dist(a, b) or 1.0)
-            x, y = a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1])
-        else:
-            x, y = pts[-1]
-        out.append((k * step_s, x - here[0], y - here[1]))
-    return out
 
 
 def predict(radio_map, now, lat, lon, offsets, degraded):

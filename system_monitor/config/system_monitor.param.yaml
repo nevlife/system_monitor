@@ -17,6 +17,3 @@ system_monitor:
     link_map_cell_m: 5.0
     link_map_max_age_s: 2592000.0
     link_horizon_s: 15.0
-    # Datum [lat, lon] of the route's map frame (navsat_transform's datum); empty predicts
-    # straight ahead only.
-    link_route_datum: []

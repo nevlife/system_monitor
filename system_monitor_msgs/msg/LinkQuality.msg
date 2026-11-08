@@ -38,8 +38,6 @@ float64 predicted_rtt_p95_ms
 float64 predicted_loss_percent
 float64 predicted_outage_ms
 uint32 map_samples_ahead
-# route (along the planned route) or velocity (straight ahead at the current velocity).
-string prediction_source
 
 # OK, NO_LINK, HANDOVER, WEAK_SIGNAL, INTERFERENCE, CONGESTION, or DEGRADED (cause unknown).
 string diagnosis
