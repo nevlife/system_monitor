@@ -18,6 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/NetworkMetrics.msg"
   "msg/GpuInfo.msg"
   "msg/GpuMetrics.msg"
+  "msg/LinkQuality.msg"
   DEPENDENCIES builtin_interfaces
 )
 

@@ -15,7 +15,11 @@ def generate_launch_description():
         name='system_monitor',
         output='screen',
         parameters=[params_file],
-        remappings=[(f'~/output/{t}', t) for t in ('cpu', 'memory', 'disk', 'network', 'gpu')],
+        remappings=[(f'~/output/{t}', t) for t in ('cpu', 'memory', 'disk', 'network', 'gpu', 'link')]
+        + [('~/input/fix', '/ublox_gps_node/fix'),
+           ('~/input/fix_velocity', '/ublox_gps_node/fix_velocity'),
+           ('~/input/route', '/route'),
+           ('~/input/rtcm', '/rtcm')],
     )
 
     return LaunchDescription(

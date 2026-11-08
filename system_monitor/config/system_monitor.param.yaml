@@ -6,3 +6,17 @@ system_monitor:
     enabled_disk: true
     enabled_network: true
     enabled_gpu: false
+    enabled_link: false
+    # Echo server (ros2 run system_monitor link_echo --port N) on the remote side.
+    link_host: 127.0.0.1
+    link_port: 13440
+    link_probe_rate: 20.0
+    link_window_s: 5.0
+    # Radio map file; an empty path disables the map and the prediction.
+    link_map_path: ''
+    link_map_cell_m: 5.0
+    link_map_max_age_s: 2592000.0
+    link_horizon_s: 15.0
+    # Datum [lat, lon] of the route's map frame (navsat_transform's datum); empty predicts
+    # straight ahead only.
+    link_route_datum: []

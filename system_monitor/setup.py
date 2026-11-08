@@ -26,6 +26,7 @@ setup(
     entry_points={
         'console_scripts': [
             'system_monitor_node = system_monitor.system_monitor_node:main',
+            'link_echo = system_monitor.link_echo:main',
         ],
     },
 )
