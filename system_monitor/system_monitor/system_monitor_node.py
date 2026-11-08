@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import math
-import os
 import time
 
 import rclpy
@@ -20,7 +19,6 @@ from system_monitor.core import modem
 from system_monitor.core import rtk
 from system_monitor.core.gpu import GpuSampler
 from system_monitor.core.network import NetworkSampler
-from system_monitor.core.radio_map import RadioMap
 from system_monitor_msgs.msg import CpuMetrics
 from system_monitor_msgs.msg import DiskMetrics
 from system_monitor_msgs.msg import DiskPartitionUsage
@@ -81,14 +79,6 @@ class SystemMonitorNode(Node):
             self.fix = None
             self.last_cell = ''
             self.create_subscription(NavSatFix, '~/input/fix', self.on_fix, qos)
-            self.map_path = self.declare_parameter('link_map_path', Parameter.Type.STRING).value
-            cell_m = self.declare_parameter('link_map_cell_m', Parameter.Type.DOUBLE).value
-            max_age = self.declare_parameter('link_map_max_age_s', Parameter.Type.DOUBLE).value
-            self.radio_map = None
-            self.map_updates = 0
-            if self.map_path:
-                self.radio_map = (RadioMap.load(self.map_path, max_age)
-                                  if os.path.exists(self.map_path) else RadioMap(cell_m, max_age))
             self.rtcm = rtk.RtcmTracker(window)
             self.create_subscription(Rtcm, '~/input/rtcm', self.on_rtcm, 10)
 
@@ -107,8 +97,6 @@ class SystemMonitorNode(Node):
             self.gpu_sampler.close()
         if self.prober is not None:
             self.prober.close()
-            if self.radio_map is not None:
-                self.radio_map.save(self.map_path)
         super().destroy_node()
 
     def publish(self):
@@ -158,17 +146,7 @@ class SystemMonitorNode(Node):
         msg.latitude = self.fix.latitude if self.fix else math.nan
         msg.longitude = self.fix.longitude if self.fix else math.nan
         msg.diagnosis = link.diagnose(data, cell, cell_changed)
-        self.update_map(msg, data)
         self.link_pub.publish(msg)
-
-    def update_map(self, msg, data):
-        if self.radio_map is None or math.isnan(msg.latitude) or not data['probes_sent']:
-            return
-        now = self.get_clock().now().nanoseconds / 1e9
-        self.radio_map.add(now, msg.latitude, msg.longitude, data)
-        self.map_updates += 1
-        if self.map_updates % 60 == 0:
-            self.radio_map.save(self.map_path)
 
     def publish_cpu(self, stamp):
         data = cpu.get_cpu_dynamic_metrics()

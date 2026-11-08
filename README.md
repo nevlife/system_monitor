@@ -71,9 +71,6 @@ ros2 launch system_monitor system_monitor.launch.py
 | `link_port`          | `13440`     | Echo server UDP port                                                                                                              |
 | `link_probe_rate`    | `20.0`      | Probes per second                                                                                                                 |
 | `link_window_s`      | `5.0`       | Window the statistics cover (s)                                                                                                   |
-| `link_map_path`      | `''`        | Radio map file, loaded at start and saved every minute and at exit; empty disables the map                                        |
-| `link_map_cell_m`    | `5.0`       | Grid cell size of a new map (m)                                                                                                   |
-| `link_map_max_age_s` | `2592000.0` | Samples older than this are ignored (s)                                                                                           |
 
 ## Published Topics
 
@@ -202,4 +199,4 @@ RTK corrections reach the vehicle over the same cellular link, about once a seco
 
 The link counts as degraded when loss is above 2%, the 95th percentile round trip is more than 100 ms above the baseline, or no reply came for more than 300 ms. The cause is then taken, in this order, from a cell id change, RSRP below -110 dBm, SINR below 0 dB, or else congestion when the signal is good. Without a modem the cause stays `DEGRADED`. A phone used as a USB tether reports no modem values. The ModemManager key names have not yet been checked against a real modem.
 
-With `link_map_path` set, each sample is also stored by position in a radio environment map, a grid of cells that keep their newest 50 samples, as drive tests map coverage. The map records where the link was bad; it does not predict.
+The `radio_map` package builds a map of link quality by place from recorded `LinkQuality` messages.
